@@ -165,7 +165,7 @@ function parseTextToJsonTree(){
         findAndPushJsonObj(element, groupObj.children, 1, group);
 
         //3 -- only for shanky chart json
-        if(previousElement){
+        if(previousElement && previousElement !== element){
             findAndPushSankeyLink(previousElement, element);
         }
 
@@ -200,7 +200,7 @@ function getElementGroup(element){
 }
 
 function findAndPushSankeyLink(previousElement, element){
-    let link = jsonSankey.links.find(obj => obj.source === previousElement && obj.target === element);
+    let link = jsonSankey.links.find(obj => (obj.source === previousElement && obj.target === element) || (obj.source === element && obj.target === previousElement));
     if(!link){
         link = getJsonSankeyLinkObject(previousElement, element);
         jsonSankey.links.push(link);
@@ -296,152 +296,35 @@ function drawSankeyChart(element){
         return;
     }
 
+    let linkArr = [];
+    let nodeSet = new Set();
+    nodeSet.add(element);
 
-    //===========
-
-
-    let text = document.getElementById('wordbox').innerHTML;
-    let previousElement = '';
-    let links = [];
-    let nodes = [];
-
-    for (let currentElement of text) {
-
-        if(!currentElement || !currentElement.trim()){
-            previousElement = '';
-            continue;
+    jsonSankey.links.forEach(link => {
+        if(link.source === element || link.target === element){
+            nodeSet.add(link.source);
+            nodeSet.add(link.target);
         }
+    });
 
-        currentElement = currentElement.trim().toLowerCase();
+    let nodes = Array.from(nodeSet);
 
-        if(!vowelSet.has(currentElement) && !consonantSet.has(currentElement) && !symbolSet.has(currentElement)){
-            previousElement = '';
-            continue;
+    jsonSankey.links.forEach(link => {
+        if(link.source === element || link.target === element){
+            linkArr.push(getJsonSankeyLinkObject(
+                nodes.indexOf(link.source),
+                nodes.indexOf(link.target),
+                link.value
+            ));
         }
+    });
 
-        if(previousElement !== element && currentElement !== element){
-            previousElement = currentElement;
-            continue;
-        }
-        
-        if(previousElement){
+    let nodesObjectArr = nodes.map(n => new Object({
+        node: nodes.indexOf(n), 
+        name: n
+    }));
 
-            if(previousElement === currentElement){
-
-                let found = false;
-                for (const l of links) {
-                    if(nodes[l.source] === element && nodes[l.target] === element){
-                        l.value++;
-                        found = true;
-                    }
-                }
-
-                if(!found){
-
-                    if(!nodes.find(element)){
-                        nodes.push(element);
-                    }
-
-                    nodes.push(element);
-                    nodes.push(element);
-
-                    let firstIndex = nodes.indexOf(element);
-                    let lastIndex = nodes.length-1;
-
-                    links.push({
-                        source: firstIndex,
-                        target: lastIndex-1,
-                        value: 1
-                    });
-
-                    links.push({
-                        source: lastIndex-1,
-                        target: lastIndex,
-                        value: 1
-                    });
-                }
-
-            }else{
-
-                let link = links.find(l => nodes[l.source] === previousElement && nodes[l.target] === currentElement);
-                if(!link){
-
-                    if(!nodes.find(previousElement)){
-                        nodes.push(previousElement);
-                    }
-
-                    if(!nodes.find(currentElement)){
-                        nodes.push(currentElement);
-                    }
-
-                    link = {
-                        source: nodes.indexOf(previousElement),
-                        target: nodes.indexOf(currentElement),
-                        value: 0
-                    };
-                }
-                link.value++;
-            }
-
-            
-        }else if(!nodes.find(n => n === currentElement)){
-            nodes.push(currentElement);
-        }
-    }
-
-
-
-
-
-
-
-
-    //=============
-
-    let jsonSankeyTarget = createSankeyJson(element, 'target', null);
-    let jsonSankeySource = createSankeyJson(element, 'source', jsonSankeyTarget.nodes);
-
-    let jsonSankeyTemp = {
-        nodes: [...jsonSankeyTarget.nodes, ...jsonSankeySource.nodes],
-        links: [...jsonSankeyTarget.links, ...jsonSankeySource.links]
-    }
-
-    let index_1 = -1;
-    let index_2 = -1;
-    for(let i=0; i<jsonSankeyTemp.nodes.length; i++){
-        let node = jsonSankeyTemp.nodes[i];
-        if(node.name === element){
-            if(index_1 == -1){
-                index_1 = i;
-            }else{
-                index_2 = i;
-            }
-        }
-        if(index_1 != -1 && index_2 != -1){
-            break;
-        }
-    }
-
-    if(index_1 != -1 && index_2 != -1){
-        for(let i=0; i<jsonSankeyTemp.links.length; i++){
-            let link = jsonSankeyTemp.links[i];
-            if(jsonSankeyTemp.nodes[link.source].name === jsonSankeyTemp.nodes[link.target].name && jsonSankeyTemp.nodes[link.source].name === element){
-                let nodeIndex = jsonSankeyTemp.nodes.length
-                jsonSankeyTemp.nodes.push(new Object({
-                    node: nodeIndex, 
-                    name: element
-                }));
-                let node_1_target_index = link.target;
-                link.target = nodeIndex;
-                jsonSankeyTemp.links.push(getJsonSankeyLinkObject(
-                    nodeIndex,
-                    node_1_target_index,
-                    link.value
-                ));
-                break;
-            }
-        }
-    }
+    let jsonSankeyTemp = getJsonSankeyObject(nodesObjectArr, linkArr);
 
     let width = 580;
     let height = 400;
@@ -549,64 +432,6 @@ function drawSankeyChart(element){
 
 }
 
-function createSankeyJson(element, elementPos, oldNodeArr){
-
-    let nodeSet = new Set();
-
-    if(elementPos === 'source'){
-        nodeSet.add(element);
-    }
-
-    let oldNodeSet = new Set();
-    let oldArrSize = 0;
-    if(oldNodeArr){
-        oldNodeSet = new Set(oldNodeArr.map(n => n.name)); 
-        oldArrSize = oldNodeArr.length;
-    }
-
-    let linkElementPos = elementPos === 'source' ? 'target' : 'source';
-
-    jsonSankey.links.forEach(link => {
-        if(link[elementPos] === element && oldNodeSet && !oldNodeSet.has(link[linkElementPos])){
-            nodeSet.add(link[linkElementPos]);
-        }
-    });
-
-    if(elementPos === 'target'){
-        nodeSet.add(element);
-    }
-
-    let nodes = Array.from(nodeSet);
-    let linkArr = [];
-
-    jsonSankey.links.forEach(link => {
-        if(link[elementPos] === element){
-            if(link.source === link.target){
-                if(elementPos === 'source'){
-                    linkArr.push(getJsonSankeyLinkObject(
-                        (oldNodeArr ? oldNodeArr.find(on => on.name === element).node : nodes.indexOf(element) + oldArrSize),
-                        nodes.indexOf(element) + oldArrSize,
-                        link.value
-                    ));
-                }
-            }else{
-                linkArr.push(getJsonSankeyLinkObject(
-                    nodes.indexOf(link.source) + oldArrSize,
-                    nodes.indexOf(link.target) + oldArrSize,
-                    link.value
-                ));
-            }
-        }
-    });
-
-    let nodesObjectArr = nodes.map(n => new Object({
-        node: nodes.indexOf(n) + oldArrSize, 
-        name: n
-    }));
-
-    return getJsonSankeyObject(nodesObjectArr, linkArr);
-}
-
 function highlight(element){
 
     d3.selectAll('.treeMapRect, .sankeyRect')
@@ -627,7 +452,8 @@ function dehighlight(element){
         .style('stroke', 'black');
 
     let wordbox = document.getElementById('wordbox');
-    wordbox.innerHTML = wordbox.textContent;
+    let regExp = new RegExp(escapeSpecialChars(`<mark class="highlighted-mark">${element}</mark>`), "g");
+    wordbox.innerHTML = wordbox.innerHTML.replace(regExp, element);
 }
 
 function escapeSpecialChars(string) {

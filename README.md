@@ -1,6 +1,6 @@
 # Linking Charts and Adding Interactivity
 
-![imgs/interface.png](imgs/interface.png)
+![imgs/interface.png](imgs/viz_2.jpg)
 
 ![imgs/hover.gif](imgs/tooltip_treemap.gif)
 
